@@ -56,6 +56,7 @@ lazy_static! {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
             task_info: TaskInfo::init_zero(),
+            task_start_time:0,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -84,7 +85,7 @@ impl TaskManager {
         task0.task_status = TaskStatus::Running;
         let current_time = get_time_us();
         let current_time = (((current_time / 1_000_000) & 0xffff) * 1000 + (current_time % 1_000_000) / 1000) as usize;
-        task0.task_info.start_time = current_time;
+        task0.task_start_time = current_time;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -129,8 +130,8 @@ impl TaskManager {
             let current_time = get_time_us();
             let current_time = (((current_time / 1_000_000) & 0xffff) * 1000 + (current_time % 1_000_000) / 1000) as usize;
             inner.tasks[next].task_status = TaskStatus::Running;
-            if inner.tasks[next].task_info.start_time == 0{
-                inner.tasks[next].task_info.start_time = current_time;
+            if inner.tasks[next].task_start_time == 0{
+                inner.tasks[next].task_start_time = current_time;
             }
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
@@ -151,7 +152,7 @@ impl TaskManager {
         let current = inner.current_task;
         let current_time = get_time_us();
         let current_time = (((current_time / 1_000_000) & 0xffff) * 1000 + (current_time % 1_000_000) / 1000) as usize;
-        inner.tasks[current].task_info.time = current_time - inner.tasks[current].task_info.start_time;
+        inner.tasks[current].task_info.time = current_time - inner.tasks[current].task_start_time;
         inner.tasks[current].task_info.status =  inner.tasks[current].task_status;
         inner.tasks[current].task_info
     }
