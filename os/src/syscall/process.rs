@@ -2,7 +2,7 @@
 use crate::{
     config::MAX_SYSCALL_NUM,
     task::{
-        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus,
+        change_program_brk, exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, get_task_start_time,get_syscall_time,
     },
     timer::get_time_us,
 };
@@ -61,9 +61,19 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info NOT IMPLEMENTED YET!");
-    -1
+    let ti = translated_t_buffer(current_user_token(), ti as usize) as * mut TaskInfo;
+    let run_time = get_time_us() - get_task_start_time();
+    let run_time = (((run_time / 1_000_000) & 0xffff) * 1000 + (run_time % 1_000_000) / 1000) as usize;
+    unsafe{
+        *ti = TaskInfo{
+            status:TaskStatus::Running,
+            syscall_times:get_syscall_time(),
+            time:run_time,
+        }
+    }
+    0
 }
 
 // YOUR JOB: Implement mmap.
