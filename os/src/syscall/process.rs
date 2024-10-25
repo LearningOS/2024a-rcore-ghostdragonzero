@@ -8,6 +8,7 @@ use crate::{
 };
 
 use crate::mm::translated_t_buffer;
+use crate::mm::{map_user, umap_user};
 use crate::task::current_user_token;
 
 #[repr(C)]
@@ -77,15 +78,19 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+    let end = start + len;
+    println!("sys_mmap start={} end= {}",start, end);
+    map_user(start, end, port)
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
+pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+    let end = start + len;
+    println!("sys_umap start={} end= {}",start, end);
+    umap_user(start, end)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

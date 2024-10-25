@@ -4,6 +4,9 @@ use super::{frame_alloc, FrameTracker, PhysPageNum, StepByOne, VirtAddr, VirtPag
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use crate::task::{insert_user, drop_user}; 
+use crate::mm::MapPermission;
+
 
 bitflags! {
     /// page table entry flags
@@ -181,4 +184,40 @@ pub fn translated_t_buffer(token: usize, ptr: usize) -> usize{
 
     let pa = usize::from(ppn) << 12 | start_va.page_offset();
     pa.into()
+}
+
+///map user
+pub fn map_user(start:usize, end:usize, port:usize)-> isize{
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(end);
+    if !start_va.aligned() || port & 0x7 == 0 || port & !0x7 != 0{
+        //沟通后明白需要添加地址是否合法判断
+        return -1;
+    }
+
+    let mut permision = MapPermission::U;
+    //因为分配了就是使用过的所以直接创建了U https://docs.rs/bitflags/latest/bitflags/
+    if port & 0x1 != 0 {
+        permision.insert(MapPermission::R);
+    }
+    if port & 0x2 != 0 {
+        permision.insert(MapPermission::W);
+    }
+    if port & 0x4 != 0 {
+        permision.insert(MapPermission::X);
+    }
+
+    insert_user(start_va, end_va, permision)
+}
+
+
+/// unmap user
+pub fn umap_user( start:usize, end:usize)-> isize{
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(end);
+    if !start_va.aligned() {
+        return -1;
+    }
+
+    drop_user(start_va, end_va)
 }

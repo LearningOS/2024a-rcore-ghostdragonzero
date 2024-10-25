@@ -21,8 +21,10 @@ use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 use crate::timer::get_time_us;
+use crate::mm::{MapPermission, VirtAddr};
 use crate::config::MAX_SYSCALL_NUM;
 pub use task::{TaskControlBlock, TaskStatus};
+
 
 pub use context::TaskContext;
 
@@ -179,6 +181,20 @@ impl TaskManager {
         inner.tasks[current].syscall_time[syscall_id] += 1;
 
     }
+    
+    ///insert user
+    fn inser_user(&self, start_va:VirtAddr, end_va:VirtAddr, permission:MapPermission)->isize{
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.insert_framed_area(start_va, end_va, permission)
+    } 
+    ///drop user
+    fn drop_user(&self, start_va:VirtAddr, end_va:VirtAddr)->isize{
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].memory_set.drop_frame_area(start_va, end_va)
+    } 
+
 }
 
 /// Run the first task in task list.
@@ -242,4 +258,14 @@ pub fn get_syscall_time() -> [u32; MAX_SYSCALL_NUM]{
 /// add syscall time
 pub fn add_syscall_time(syscall_id: usize) {
     TASK_MANAGER.add_syscall_time(syscall_id);
+}
+
+/// map user
+pub fn insert_user(start_va: VirtAddr, end_va: VirtAddr, permission: MapPermission)->isize{
+    TASK_MANAGER.inser_user(start_va, end_va, permission)
+}
+
+/// umap user
+pub fn drop_user(start_va: VirtAddr, end_va: VirtAddr)->isize{
+    TASK_MANAGER.drop_user(start_va, end_va)
 }
