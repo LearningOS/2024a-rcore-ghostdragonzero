@@ -60,6 +60,64 @@ impl MemorySet {
             None,
         );
     }
+    /// Assume that no conflicts.
+    pub fn insert_map_framed_area(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+        permission: MapPermission,
+    )  ->isize{
+        let start_vpn: VirtPageNum = start_va.floor();
+        let end_vpn: VirtPageNum = end_va.ceil();
+        for meped_area in &self.areas{
+            let map_ed_start_va = meped_area.vpn_range.get_start();
+            let map_ed_end_va = meped_area.vpn_range.get_end();
+            println!("map start_va = {} end_va= {}", start_va.floor().0, end_va.ceil().0);
+            println!("map area.vpn_range.get_start() = {} area.vpn_range.get_end(){}", meped_area.vpn_range.get_start().0, meped_area.vpn_range.get_end().0);
+            if map_ed_end_va <= start_vpn || map_ed_start_va >= end_vpn{
+                //找是否有重合的部分  因为分配的内存是一个左闭右开区间所以要用<= 和>=
+            }else{
+                /* 
+                println!("is maped");
+                println!("map_ed_start = {} start_va={} start_vpn = {}", map_ed_start_va.0, start_va.0,start_vpn.0);
+                println!("map_ed_end = {} end_va={} end_vpn = {}", map_ed_end_va.0, end_va.0,end_vpn.0);
+                */
+                return -1;
+            }
+        }
+        self.push(
+            MapArea::new(start_va, end_va, MapType::Framed, permission),
+            None,
+        );
+        0
+    }
+    ///umap user
+    pub fn drop_frame_area(
+        &mut self,
+        start_va: VirtAddr,
+        end_va: VirtAddr,
+    ) ->isize{
+        let mut unmap_index = 0;
+        let mut is_maped = false;
+        for (i, area) in self.areas.iter().enumerate() {
+            if area.vpn_range.get_start() == start_va.floor()
+                && area.vpn_range.get_end() >= end_va.ceil()
+            {
+                println!("umap start_va = {} end_va= {}", start_va.floor().0, end_va.ceil().0);
+                println!("umap area.vpn_range.get_start() = {} area.vpn_range.get_end(){}", area.vpn_range.get_start().0, area.vpn_range.get_end().0);
+                unmap_index = i;
+                is_maped = true;
+                break;
+            }
+        }
+        if is_maped {
+            self.pop(unmap_index);
+            return 0;
+        }else{
+            return -1;
+        }
+        
+    }
     /// remove a area
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
         if let Some((idx, area)) = self
@@ -81,6 +139,14 @@ impl MemorySet {
             map_area.copy_data(&mut self.page_table, data);
         }
         self.areas.push(map_area);
+    }
+    ///pop area
+    fn pop(&mut self, unmap_area_index: usize){
+        //因为移除vec需要的是index 发现如果传入的是MapArea会需要找两次
+        //https://blog.csdn.net/u011528645/article/details/123117829
+        let mut unmap_area = self.areas.remove(unmap_area_index);
+        unmap_area.unmap(&mut self.page_table);
+        
     }
     /// Mention that trampoline is not collected by areas.
     fn map_trampoline(&mut self) {

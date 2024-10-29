@@ -213,3 +213,13 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .unwrap()
         .get_mut()
 }
+
+///get pa from user
+pub fn translated_t_buffer(token: usize, ptr: usize) -> usize{
+    let page_table = PageTable::from_token(token);
+    let start_va = VirtAddr::from(ptr);
+    let vpn = start_va.floor();
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let pa = usize::from(ppn) << 12 | start_va.page_offset();
+    pa.into()
+}

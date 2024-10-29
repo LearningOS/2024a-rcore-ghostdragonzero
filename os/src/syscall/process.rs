@@ -4,12 +4,13 @@ use alloc::sync::Arc;
 use crate::{
     config::MAX_SYSCALL_NUM,
     loader::get_app_data_by_name,
-    mm::{translated_refmut, translated_str},
+    mm::{translated_refmut, translated_str, VirtAddr},
     task::{
-        add_task, current_task, current_user_token, exit_current_and_run_next,
-        suspend_current_and_run_next, TaskStatus,
+        add_task, current_task, current_user_token, exit_current_and_run_next, get_start_time, get_syscall_time, suspend_current_and_run_next, TaskStatus
     },
 };
+use crate::timer::get_time_us;
+use crate::mm::{translated_t_buffer, MapPermission};
 
 #[repr(C)]
 #[derive(Debug)]
@@ -117,41 +118,90 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 /// YOUR JOB: get time with second and microsecond
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TimeVal`] is splitted by two pages ?
-pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_get_time NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let us = get_time_us();
+    let ts = translated_refmut(current_user_token(), ts);
+        *ts = TimeVal {
+            sec: us / 1_000_000,
+            usec: us % 1_000_000,
+        };
+    0
+    
+
 }
 
 /// YOUR JOB: Finish sys_task_info to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
 /// HINT: What if [`TaskInfo`] is splitted by two pages ?
-pub fn sys_task_info(_ti: *mut TaskInfo) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_task_info NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
+ 
+    
+    //let ti = translated_refmut(current_user_token(), ti);
+    let ti = translated_t_buffer(current_user_token(), ti as usize) as * mut TaskInfo;
+    let run_time = get_time_us() - get_start_time();
+    
+    let run_time = (((run_time / 1_000_000) & 0xffff) * 1000 + (run_time % 1_000_000) / 1000) as usize;
+    println!("runtime {}", run_time);
+    let syscall: [u32; 500] = get_syscall_time();
+    println!("syscall test {}", syscall[169]);
+    unsafe{
+        *ti = TaskInfo{
+            status:TaskStatus::Running,
+            syscall_times:get_syscall_time(),
+            time:run_time,
+        }
+    }
+    0
 }
 
 /// YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     trace!(
         "kernel:pid[{}] sys_mmap NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    let task = current_task().unwrap();
+    // find current task
+    // ---- access current PCB exclusively
+    let mut inner = task.inner_exclusive_access();
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(start + len);
+    println!("map start_va = {} end_va= {}", start_va.0, end_va.0);
+    if !start_va.aligned() || port & 0x7 == 0 || port & !0x7 != 0{
+        //沟通后明白需要添加地址是否合法判断
+        return -1;
+    }
+    let mut permision = MapPermission::U;
+    //因为分配了就是使用过的所以直接创建了U https://docs.rs/bitflags/latest/bitflags/
+    if port & 0x1 != 0 {
+        permision.insert(MapPermission::R);
+    }
+    if port & 0x2 != 0 {
+        permision.insert(MapPermission::W);
+    }
+    if port & 0x4 != 0 {
+        permision.insert(MapPermission::X);
+    }
+    inner.memory_set.insert_map_framed_area(start_va, end_va, permision)
+    
 }
 
 /// YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_munmap NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    let start_va = VirtAddr::from(start);
+    let end_va = VirtAddr::from(start + len);
+    if !start_va.aligned(){
+        //沟通后明白需要添加地址是否合法判断
+        return -1;
+    }
+    println!("umap start_va = {} end_va= {}", start_va.0, end_va.0);
+    inner.memory_set.drop_frame_area(start_va, end_va)
 }
 
 /// change data segment size
@@ -166,19 +216,46 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
-    trace!(
-        "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
-        current_task().unwrap().pid.0
-    );
-    -1
+pub fn sys_spawn(path: *const u8) -> isize {
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    if let Some(data) = get_app_data_by_name(path.as_str()) {
+        // 
+        let current_task = current_task().unwrap();
+        let new_task = current_task.spawn(data);
+        let new_pid = new_task.pid.0;
+        // modify trap context of new_task, because it returns immediately after switching
+        let trap_cx = new_task.inner_exclusive_access().get_trap_cx();
+        // we do not have to move to next instruction since we have done it before
+        // for child process, fork returns 0
+        trap_cx.x[10] = 0;
+        // add new task to scheduler
+        add_task(new_task);
+        println!("sys call spaw");
+        new_pid as isize
+
+    } else {
+        -1
+
+    }
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if prio < 2{
+        return -1;
+    }
+    let task = current_task().unwrap();
+    // find a child process
+
+    // ---- access current PCB exclusively
+    let mut inner = task.inner_exclusive_access();
+    inner.pass = prio;
+    prio
+    
+
 }
