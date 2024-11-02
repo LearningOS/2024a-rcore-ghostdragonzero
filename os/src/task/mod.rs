@@ -29,6 +29,7 @@ use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
+use crate::config::MAX_SYSCALL_NUM;
 
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
@@ -119,4 +120,31 @@ lazy_static! {
 ///Add init process to the manager
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+///add syscall_time
+pub fn add_syscall_time(syscall_id: usize){
+
+    let task = current_task().unwrap();
+    // find current task
+    // ---- access current PCB exclusively
+    let mut inner = task.inner_exclusive_access();
+    inner.syscall_time[syscall_id] += 1;
+}
+
+/// get start time
+pub fn get_start_time() -> usize{
+    let task = current_task().unwrap();
+    // find current task
+    // ---- access current PCB exclusively
+    let inner = task.inner_exclusive_access();
+    inner.start_time
+}
+/// get_syscall_time
+pub fn get_syscall_time() -> [u32; MAX_SYSCALL_NUM]{
+    let task = current_task().unwrap();
+    // find current task
+    // ---- access current PCB exclusively
+    let inner = task.inner_exclusive_access();
+    inner.syscall_time
 }
