@@ -224,8 +224,9 @@ impl File for OSInode {
     fn get_inode_id(&self) -> u32 {
         let inner = self.inner.exclusive_access();
         let inode = inner.inode.clone();
-        let fs = inode.fs.lock();
-        fs.get_disk_inode_id(inode.block_id as u32, inode.block_offset)
+        //let fs = inode.fs.lock();
+        //fs.get_disk_inode_id(inode.block_id as u32, inode.block_offset)
+        inode.inode_id as u32
     }
 
 }
