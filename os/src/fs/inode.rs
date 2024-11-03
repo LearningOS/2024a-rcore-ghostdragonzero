@@ -4,15 +4,16 @@
 //!
 //! `UPSafeCell<OSInodeInner>` -> `OSInode`: for static `ROOT_INODE`,we
 //! need to wrap `OSInodeInner` into `UPSafeCell`
-use super::File;
+use super::{File, StatMode};
 use crate::drivers::BLOCK_DEVICE;
 use crate::mm::UserBuffer;
 use crate::sync::UPSafeCell;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use bitflags::*;
-use easy_fs::{EasyFileSystem, Inode};
+use easy_fs::{EasyFileSystem, Inode,};
 use lazy_static::*;
+
 
 /// inode in memory
 /// A wrapper around a filesystem inode
@@ -55,6 +56,7 @@ impl OSInode {
 }
 
 lazy_static! {
+    /// root:w_cor
     pub static ref ROOT_INODE: Arc<Inode> = {
         let efs = EasyFileSystem::open(BLOCK_DEVICE.clone());
         Arc::new(EasyFileSystem::root_inode(&efs))
@@ -69,6 +71,69 @@ pub fn list_apps() {
     }
     println!("**************/");
 }
+
+/// find a file
+pub fn link_file(old_name: &str, new_name: &str) -> isize {
+    println!("==========link_file_before===============");
+    list_apps();
+    println!("==========link_file_before===============");
+
+    if let Some(inode) = ROOT_INODE.find_id(old_name) {
+    let ok = ROOT_INODE.create_link_inode(new_name, inode);
+        println!("==========link_file===============");
+    list_apps();
+        println!("==========link_file===============");
+        ok
+    }else{
+        -1
+    }
+}
+
+/// unlink a file
+pub fn unlink_file(name: &str) -> isize {
+    println!("==========unlink_file_before===============");
+    list_apps();
+    println!("==========unlink_file_before===============");
+    let ok;
+    let linknum = ROOT_INODE.get_link_number(name);
+    if linknum == 1{
+        if let Some(inode) = ROOT_INODE.find(name){
+            inode.clear();
+        }
+        ok = ROOT_INODE.delet_inode(name);
+        println!("dele file and node");
+    }else {
+        ok = ROOT_INODE.delet_inode(name);
+        println!("only delete inode");
+    }
+
+    println!("==========link_file===============");
+    list_apps();
+    println!("==========link_file===============");
+    ok
+
+}
+
+/// get indoe_type
+pub fn get_inode_type(inode_id:u32) -> StatMode{
+    println!("==========now link_file===============");
+    list_apps();
+    println!("==========now link_file===============");
+    let is_dir = ROOT_INODE.get_link_type_by_id(inode_id);
+    println!("is_dir = {}", is_dir);
+    if is_dir{
+        StatMode::DIR
+    }else{
+        StatMode::FILE
+    }
+}
+
+/// get inode link number
+pub fn get_inode_link_number(inode_id:u32) -> u32{
+    ROOT_INODE.get_link_number_by_id(inode_id)
+
+}
+
 
 bitflags! {
     ///  The flags argument to the open() system call is constructed by ORing together zero or more of the following values:
@@ -155,4 +220,12 @@ impl File for OSInode {
         }
         total_write_size
     }
+
+    fn get_inode_id(&self) -> u32 {
+        let inner = self.inner.exclusive_access();
+        let inode = inner.inode.clone();
+        let fs = inode.fs.lock();
+        fs.get_disk_inode_id(inode.block_id as u32, inode.block_offset)
+    }
+
 }
