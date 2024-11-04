@@ -12,7 +12,12 @@
 
 # 二问题简答
 ## 1 使用特权指令出错
-
+sbi版本
+[rustsbi] Implementation     : RustSBI-QEMU Version 0.2.0-alpha.2
+出现的错误
+[kernel] PageFault in application, bad addr = 0x0, bad instruction = 0x804003a4, kernel killed it.
+[kernel] IllegalInstruction in application, kernel killed it.
+会提示访问非法地址内核结束进程
 ## 2、深入理解trap.S
 ### 2.1
 在__alltraps中我们会将sp指向内核栈并将这个值保存到a0寄存器中
