@@ -1,3 +1,4 @@
+
 use crate::sync::{Condvar, Mutex, MutexBlocking, MutexSpin, Semaphore};
 use crate::task::{block_current_and_run_next, current_process, current_task};
 use crate::timer::{add_timer, get_time_ms};
@@ -71,9 +72,16 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+    let task = current_task().unwrap();
+    let mut task_inner = task.inner_exclusive_access();
+    if process_inner.dead_lock_enabel == true && task_inner.mutex_have[mutex_id] == 1{
+        return  -0xdead;
+    }
+    
     drop(process_inner);
     drop(process);
     mutex.lock();
+    task_inner.mutex_have[mutex_id] += 1;
     0
 }
 /// mutex unlock syscall
@@ -92,9 +100,12 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
     let process = current_process();
     let process_inner = process.inner_exclusive_access();
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
+    let task = current_task().unwrap();
+    let mut task_inner = task.inner_exclusive_access();
     drop(process_inner);
     drop(process);
     mutex.unlock();
+    task_inner.mutex_have[mutex_id] -= 1;
     0
 }
 /// semaphore create syscall
