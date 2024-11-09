@@ -41,8 +41,7 @@ pub struct TaskControlBlockInner {
     pub task_status: TaskStatus,
     /// It is set when active exit or execution error occurs
     pub exit_code: Option<i32>,
-    /// mutex
-    pub mutex_have: [usize;10],
+
 
 
 }
@@ -79,7 +78,7 @@ impl TaskControlBlock {
                     task_cx: TaskContext::goto_trap_return(kstack_top),
                     task_status: TaskStatus::Ready,
                     exit_code: None,
-                    mutex_have:[0;10],
+
                 })
             },
         }
