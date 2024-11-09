@@ -60,36 +60,47 @@ pub fn sys_mutex_create(blocking: bool) -> isize {
     }
 
     process_inner.mutex_available[mutx_id as usize] = 1;
-    println!("mutx_id= {}", mutx_id);
-
 
     mutx_id 
 }
 
-fn check_deadlock( mut avail: [u32;20], mut all_mutx:[[u32;10];20], mut need_mutx:[[u32;10];20]) -> bool {
+fn check_deadlock( mut avail: [u32;20], mut all_mutx:[[u32;20];20], mut need_mutx:[[u32;20];20]) -> bool {
 
-    let mut done = [false;10];
+    let mut done = [false;20];
     println!("start loop ");
-    for i in 0..10 {
-        let mut enough = true;
-        for j in 0..10 {
-            if need_mutx[i][j] > avail[j] {
-                enough = false;
-                break;
+    let mut flag = true;
+    while flag{
+        flag = false;
+        for i in 0..20 {
+            if done[i] {
+                continue;
+            }
+            //检测通过要跳出 否则会持续循环
+            let mut enough = true;
+            for j in 0..20 {
+                if need_mutx[i][j] == 0{
+                    continue;
+                }
+                if need_mutx[i][j] > avail[j] {
+                    enough = false;
+                    break;
+                }
+            }
+            if enough {
+                flag  = true;
+                done[i] = true;
+                for j in 0..20{
+                    avail[j] += all_mutx[i][j];
+                    all_mutx[i][j] = 0;
+                    need_mutx[i][j] = 0;
+                }
             }
         }
-        if enough {
-            done[i] = true;
-            for j in 0..10 {
-                avail[j] += all_mutx[i][j];
-                all_mutx[i][j] = 0;
-                need_mutx[i][j] = 0;
-            }
-        }
-        println!("for i = {}", i);
+        println!("not end");
     }
 
-    let mut flag = true;
+
+    flag = true;
     for i in 0..10 {
         if !done[i] {
             flag = false;
@@ -117,9 +128,9 @@ pub fn sys_mutex_lock(mutex_id: usize) -> isize {
     let mut process_inner = process.inner_exclusive_access();
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     let tid = current_task().unwrap().inner_exclusive_access().res.as_ref().unwrap().tid;
-    println!("mutx_id= {}", mutex_id);
+    //println!("mutx_id= {}", mutex_id);
     process_inner.th_need_mutex[tid][mutex_id] += 1;
-    println!("get mutx");
+    //println!("get mutx");
     if process_inner.dead_lock_enabel == true{
         println!("check dead_lock");
         if  check_deadlock(process_inner.mutex_available.clone(), process_inner.th_have_mutx.clone(), process_inner.th_need_mutex.clone()){
@@ -153,7 +164,7 @@ pub fn sys_mutex_unlock(mutex_id: usize) -> isize {
     let mutex = Arc::clone(process_inner.mutex_list[mutex_id].as_ref().unwrap());
     process_inner.mutex_available[mutex_id] += 1;
     let tid = current_task().unwrap().inner_exclusive_access().res.as_ref().unwrap().tid;
-    println!("mutx_id= {}", mutex_id);
+    //println!("mutx_id= {}", mutex_id);
     process_inner.th_have_mutx[tid][mutex_id as usize] -= 1;
 
 
@@ -195,6 +206,8 @@ pub fn sys_semaphore_create(res_count: usize) -> isize {
         process_inner.semaphore_list.len() - 1
     };
     process_inner.seg_available[id as usize] = res_count as u32;
+    println!("create id= {}",id);
+    println!("create res_count= {}",res_count);
     id as isize
 }
 /// semaphore up syscall

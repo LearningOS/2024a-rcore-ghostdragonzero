@@ -52,15 +52,15 @@ pub struct ProcessControlBlockInner {
     /// dedalockdectect
     pub dead_lock_enabel:bool,
     /// all mutx
-    pub th_have_mutx: [[u32;10];20],
+    pub th_have_mutx: [[u32;20];20],
     /// mutx needed
-    pub th_need_mutex: [[u32;10];20],
+    pub th_need_mutex: [[u32;20];20],
     /// sem available now
     pub mutex_available: [u32;20],
     /// all mutx
-    pub th_have_seg: [[u32;10];20],
+    pub th_have_seg: [[u32;20];20],
     /// mutx needed
-    pub th_need_seg: [[u32;10];20],
+    pub th_need_seg: [[u32;20];20],
     /// sem available now
     pub seg_available: [u32;20],
 }
@@ -134,11 +134,11 @@ impl ProcessControlBlock {
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                     dead_lock_enabel:false,
-                    th_have_mutx: [[0;10];20],
-                    th_need_mutex: [[0;10];20],
+                    th_have_mutx: [[0;20];20],
+                    th_need_mutex: [[0;20];20],
                     mutex_available: [0;20],
-                    th_have_seg: [[0;10];20],
-                    th_need_seg: [[0;10];20],
+                    th_have_seg: [[0;20];20],
+                    th_need_seg: [[0;20];20],
                     seg_available: [0;20],
                 })
             },
@@ -267,11 +267,11 @@ impl ProcessControlBlock {
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
                     dead_lock_enabel:false,
-                    th_have_mutx: [[0;10];20],
-                    th_need_mutex: [[0;10];20],
+                    th_have_mutx: [[0;20];20],
+                    th_need_mutex: [[0;20];20],
                     mutex_available: [0;20],
-                    th_have_seg: [[0;10];20],
-                    th_need_seg: [[0;10];20],
+                    th_have_seg: [[0;20];20],
+                    th_need_seg: [[0;20];20],
                     seg_available: [0;20],          
                     })
             },
